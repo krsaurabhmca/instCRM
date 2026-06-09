@@ -23,14 +23,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Handle Receipt Cancellation (Admin Only)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'cancel_receipt') {
+    if (verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        if ($_SESSION['user_role'] === 'Admin') {
+            $payment_id = intval($_POST['payment_id']);
+            db_query($conn, "UPDATE fee_payments SET status = 'Cancelled' WHERE id = ? AND tenant_id = ?", [$payment_id, $tenant_id]);
+            set_flash_message('success', 'Receipt has been cancelled successfully.');
+        } else {
+            set_flash_message('danger', 'Unauthorized. Only admins can cancel receipts.');
+        }
+        redirect('/fees.php');
+    }
+}
+
 // Fetch stats
-$total_received = mysqli_fetch_assoc(db_query($conn, "SELECT SUM(amount_paid) as total FROM fee_payments WHERE tenant_id = ?", [$tenant_id]))['total'] ?? 0;
+$total_received = mysqli_fetch_assoc(db_query($conn, "SELECT SUM(amount_paid) as total FROM fee_payments WHERE tenant_id = ? AND status = 'Active'", [$tenant_id]))['total'] ?? 0;
 
 // Calculate outstanding dues (Courses total fee - payments total)
 $total_fees_due_res = mysqli_fetch_assoc(db_query($conn, "
     SELECT 
         (SELECT SUM(c.total_fee) FROM students s JOIN courses c ON s.course_id = c.id WHERE s.tenant_id = ?) as total_expected,
-        (SELECT SUM(amount_paid) FROM fee_payments WHERE tenant_id = ?) as total_paid", [$tenant_id, $tenant_id]));
+        (SELECT SUM(amount_paid) FROM fee_payments WHERE tenant_id = ? AND status = 'Active') as total_paid", [$tenant_id, $tenant_id]));
 $total_expected = $total_fees_due_res['total_expected'] ?? 0;
 $total_paid = $total_fees_due_res['total_paid'] ?? 0;
 $total_due = max(0, $total_expected - $total_paid);
@@ -119,17 +133,29 @@ $defaulters_res = db_query($conn, "
                                 <tr>
                                     <td>
                                         <strong><?= $row['receipt_number'] ?></strong>
+                                        <?php if (($row['status'] ?? 'Active') === 'Cancelled'): ?>
+                                            <span class="badge danger" style="margin-left:4px; font-size:0.65rem;">Cancelled</span>
+                                        <?php endif; ?>
                                         <div class="text-muted"><?= date('d M Y', strtotime($row['payment_date'])) ?></div>
                                     </td>
                                     <td>
                                         <strong><?= $row['student_name'] ?></strong>
                                         <div class="text-muted">Roll: <?= $row['student_roll'] ?></div>
                                     </td>
-                                    <td class="fw-700">₹<?= number_format($row['amount_paid'], 2) ?></td>
+                                    <td class="fw-700 <?= ($row['status'] ?? 'Active') === 'Cancelled' ? 'text-muted' : '' ?>" <?= ($row['status'] ?? 'Active') === 'Cancelled' ? 'style="text-decoration:line-through;"' : '' ?>>₹<?= number_format($row['amount_paid'], 2) ?></td>
                                     <td><span class="badge primary"><?= $row['payment_mode'] ?></span></td>
                                     <td>
                                         <div class="action-btns">
                                             <button class="btn btn-secondary btn-sm btn-icon" onclick='viewReceipt(<?= htmlspecialchars(json_encode($row)) ?>)' title="View & Print"><i class="bi bi-printer"></i></button>
+                                            
+                                            <?php if ($_SESSION['user_role'] === 'Admin' && ($row['status'] ?? 'Active') === 'Active'): ?>
+                                            <form method="POST" action="fees.php" style="display:inline;" onsubmit="return confirm('Are you sure you want to cancel this receipt? This will remove the payment from total collections.');">
+                                                <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                                <input type="hidden" name="action" value="cancel_receipt">
+                                                <input type="hidden" name="payment_id" value="<?= $row['id'] ?>">
+                                                <button type="submit" class="btn btn-danger-soft btn-sm btn-icon" title="Cancel Receipt"><i class="bi bi-x-circle"></i></button>
+                                            </form>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -253,13 +279,32 @@ $defaulters_res = db_query($conn, "
         </div>
         <div class="modal-body" style="padding: 20px;">
             <div id="receiptContainer" style="padding:24px;border:1px solid var(--ink-200);border-radius:var(--r-md);background:#fff;font-family:var(--font-ui);">
-                <div style="text-align: center; border-bottom: 2px solid var(--primary); padding-bottom: 12px; margin-bottom: 16px;">
-                    <?php if ($tenant_logo && file_exists(dirname(__DIR__) . '/' . $tenant_logo)): ?>
-                        <img src="<?= BASE_URL ?>/<?= $tenant_logo ?>" alt="Logo" style="max-height:45px; margin-bottom:8px;">
-                    <?php else: ?>
-                        <h2 style="font-family: var(--font-heading); margin: 0; color: var(--primary); text-transform: uppercase;"><?= htmlspecialchars($_SESSION['tenant_name'] ?? '') ?></h2>
-                    <?php endif; ?>
-                    <p style="font-size: 0.8rem; color: var(--slate-400); margin: 4px 0 0;">Official Payment Receipt</p>
+                <!-- HEADER (Logo Left, Details Center, QR Right) -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--primary); padding-bottom: 12px; margin-bottom: 16px;">
+                    <!-- Left: Logo -->
+                    <div style="width: 25%; text-align: left;">
+                        <?php if ($show_logo_receipt && $tenant_logo && file_exists(dirname(__DIR__) . '/' . $tenant_logo)): ?>
+                            <img src="<?= BASE_URL ?>/<?= $tenant_logo ?>" alt="Logo" style="max-width: 100%; max-height: 50px;">
+                        <?php endif; ?>
+                    </div>
+                    
+                    <!-- Center: Institute Details -->
+                    <div style="width: 50%; text-align: center;">
+                        <h2 style="font-family: var(--font-heading); margin: 0; color: var(--primary); text-transform: uppercase; font-size: 1.1rem; line-height: 1.2;"><?= htmlspecialchars($_SESSION['tenant_name'] ?? '') ?></h2>
+                        <div style="font-size: 0.7rem; color: var(--slate-500); margin-top: 4px; line-height: 1.4;">
+                            <?php if (!empty($tenant_address)) echo htmlspecialchars($tenant_address) . '<br>'; ?>
+                            <?php if (!empty($tenant_phone)) echo 'Ph: ' . htmlspecialchars($tenant_phone) . ' '; ?>
+                            <?php if (!empty($tenant_email)) echo '| ' . htmlspecialchars($tenant_email); ?>
+                        </div>
+                        <div style="font-size: 0.8rem; font-weight: bold; margin-top: 6px; color: var(--slate-700); letter-spacing: 1px;">FEE RECEIPT</div>
+                    </div>
+                    
+                    <!-- Right: QR Code -->
+                    <div style="width: 25%; text-align: right;">
+                        <?php if ($show_qr_receipt): ?>
+                            <img id="recQR" src="" alt="QR Code" style="width: 60px; height: 60px; border: 1px solid var(--ink-200); padding: 2px; border-radius: 4px; display: inline-block;">
+                        <?php endif; ?>
+                    </div>
                 </div>
                 
                 <table style="width: 100%; font-size: 0.85rem; line-height: 2;">
@@ -297,8 +342,21 @@ $defaulters_res = db_query($conn, "
                     </tr>
                 </table>
                 
-                <div style="text-align: center; margin-top: 24px; font-size: 0.75rem; color: var(--slate-400); border-top: 1px solid var(--slate-200); padding-top: 12px;">
-                    This is an electronically generated document. No signature required.
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--slate-200);">
+                    <div style="width: 60%; font-size: 0.7rem; color: var(--slate-500); text-align: left;">
+                        <?php if (!empty($receipt_notes)): ?>
+                            <strong>Terms & Notes:</strong><br>
+                            <?= nl2br(htmlspecialchars($receipt_notes)) ?>
+                        <?php endif; ?>
+                    </div>
+                    <div style="width: 40%; text-align: right;">
+                        <?php if (!empty($signature_path) && file_exists(dirname(__DIR__) . '/' . $signature_path)): ?>
+                            <img src="<?= BASE_URL ?>/<?= $signature_path ?>" alt="Signature" style="max-height: 35px; margin-bottom: 4px;">
+                        <?php else: ?>
+                            <div style="height: 35px;"></div>
+                        <?php endif; ?>
+                        <div style="font-size: 0.7rem; color: var(--slate-600); border-top: 1px dashed var(--ink-200); display: inline-block; padding-top: 4px; min-width: 120px; text-align: center;">Authorized Signatory</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -320,6 +378,12 @@ function viewReceipt(data) {
     document.getElementById('recAmount').textContent = Number(data.amount_paid).toFixed(2);
     document.getElementById('recMode').textContent = data.payment_mode;
     document.getElementById('recNotes').textContent = data.notes || 'N/A';
+    
+    const qrEl = document.getElementById('recQR');
+    if (qrEl) {
+        qrEl.src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent('Receipt: ' + data.receipt_number);
+    }
+    
     openModal('receiptModal');
 }
 </script>

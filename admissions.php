@@ -45,6 +45,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         set_flash_message('success', 'Student registered and admitted successfully!');
         redirect('/admissions.php');
     }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_student') {
+    if (verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $s_id = intval($_POST['student_id']);
+        $name = sanitize($_POST['name']);
+        $mobile = sanitize($_POST['mobile']);
+        $email = sanitize($_POST['email']);
+        $course_id = intval($_POST['course_id']);
+        $batch_id = intval($_POST['batch_id']);
+        $admission_date = sanitize($_POST['admission_date']);
+        
+        db_query($conn, "UPDATE students SET name=?, mobile=?, email=?, course_id=?, batch_id=?, admission_date=? WHERE id=? AND tenant_id=?", 
+            [$name, $mobile, $email, $course_id, $batch_id, $admission_date, $s_id, $tenant_id]);
+        set_flash_message('success', 'Student details updated successfully.');
+        redirect('/admissions.php');
+    }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_student') {
+    if (verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $s_id = intval($_POST['student_id']);
+        $pay_check = db_query($conn, "SELECT id FROM fee_payments WHERE student_id=? AND tenant_id=?", [$s_id, $tenant_id]);
+        if (mysqli_num_rows($pay_check) > 0) {
+            set_flash_message('danger', 'Cannot delete student with existing fee payments.');
+        } else {
+            db_query($conn, "DELETE FROM attendance WHERE student_id=? AND tenant_id=?", [$s_id, $tenant_id]);
+            db_query($conn, "DELETE FROM students WHERE id=? AND tenant_id=?", [$s_id, $tenant_id]);
+            set_flash_message('success', 'Student deleted successfully.');
+        }
+        redirect('/admissions.php');
+    }
 }
 
 // Fetch Courses and Batches for dropdowns
@@ -133,10 +161,17 @@ $students = db_query($conn, $query, $params);
                                 <td>
                                     <div class="action-btns">
                                         <button class="btn btn-secondary btn-sm" onclick='openIdCard(<?= htmlspecialchars(json_encode($row)) ?>)' title="ID Card"><i class="bi bi-card-image"></i> ID</button>
+                                        <button class="btn btn-primary-soft btn-sm btn-icon" onclick='editAdmission(<?= htmlspecialchars(json_encode($row)) ?>)' title="Edit"><i class="bi bi-pencil"></i></button>
                                         <?php
                                         $conf_msg = urlencode("Dear " . $row['name'] . ", Welcome to " . $_SESSION['tenant_name'] . "! Your admission for " . $row['course_name'] . " is confirmed. Roll No: " . $row['roll_number'] . ".");
                                         ?>
                                         <a href="https://wa.me/<?= preg_replace('/[^0-9]/', '', $row['mobile']) ?>?text=<?= $conf_msg ?>" target="_blank" class="btn btn-success btn-sm btn-icon" title="WhatsApp"><i class="bi bi-whatsapp"></i></a>
+                                        <form method="POST" style="display:inline;">
+                                            <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                            <input type="hidden" name="action" value="delete_student">
+                                            <input type="hidden" name="student_id" value="<?= $row['id'] ?>">
+                                            <button type="submit" class="btn btn-danger-soft btn-sm btn-icon" onclick="return confirm('Delete this admission? This action cannot be undone.')" title="Delete"><i class="bi bi-trash"></i></button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -223,6 +258,68 @@ $students = db_query($conn, $query, $params);
     </div>
 </div>
 
+<!-- Modal: Edit Admission -->
+<div id="editAdmissionModal" class="modal-backdrop">
+    <div class="modal" style="max-width: 600px;">
+        <form action="admissions.php" method="POST">
+            <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+            <input type="hidden" name="action" value="edit_student">
+            <input type="hidden" name="student_id" id="e_student_id">
+
+            <div class="modal-header">
+                <h3><i class="bi bi-pencil-square" style="color:var(--primary);margin-right:6px;"></i>Edit Admission Details</h3>
+                <button type="button" class="modal-close" onclick="closeModal('editAdmissionModal')"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Student Full Name</label>
+                    <input type="text" name="name" id="e_name" class="form-control" required>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Mobile Number</label>
+                        <input type="text" name="mobile" id="e_mobile" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" name="email" id="e_email" class="form-control">
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Course</label>
+                        <select name="course_id" id="e_course_id" class="form-control" required>
+                            <option value="">Select Course</option>
+                            <?php foreach ($courses as $c): ?>
+                                <option value="<?= $c['id'] ?>"><?= $c['name'] ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Batch</label>
+                        <select name="batch_id" id="e_batch_id" class="form-control" required>
+                            <option value="">Select Batch</option>
+                            <?php foreach ($batches as $b): ?>
+                                <option value="<?= $b['id'] ?>"><?= $b['name'] ?> (<?= $b['course_name'] ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Admission Date</label>
+                    <input type="date" name="admission_date" id="e_admission_date" class="form-control" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editAdmissionModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modal: ID Card View -->
 <div id="idCardModal" class="modal-backdrop">
     <div class="modal" style="max-width: 400px; background-color: var(--slate-100);">
@@ -234,9 +331,9 @@ $students = db_query($conn, $query, $params);
             <!-- Beautiful Printable ID Card -->
             <div id="idCardContainer" style="width:280px;background:#fff;border-radius:16px;box-shadow:var(--shadow-md);border:2px solid var(--primary);text-align:center;font-family:var(--font-ui);overflow:hidden;">
                 <div style="background:var(--primary);color:#fff;padding:20px 10px;font-family:var(--font-display);">
-                    <?php if ($tenant_logo && file_exists(dirname(__DIR__) . '/' . $tenant_logo)): ?>
+                    <?php if ($show_logo_id && $tenant_logo && file_exists(dirname(__DIR__) . '/' . $tenant_logo)): ?>
                         <img src="<?= BASE_URL ?>/<?= $tenant_logo ?>" alt="Logo" style="max-height:40px; margin-bottom:8px;">
-                    <?php else: ?>
+                    <?php elseif ($show_logo_id): ?>
                         <h3 style="margin:0;font-size:1.1rem;text-transform:uppercase;"><?= htmlspecialchars($_SESSION['tenant_name'] ?? '') ?></h3>
                     <?php endif; ?>
                     <div style="font-size:0.7rem;opacity:.85;margin-top:4px;">STUDENT IDENTIFICATION CARD</div>
@@ -252,6 +349,11 @@ $students = db_query($conn, $query, $params);
                         <div style="margin-bottom:4px;"><strong>Batch:</strong> <span id="idCardBatch">N/A</span></div>
                         <div><strong>Phone:</strong> <span id="idCardPhone">N/A</span></div>
                     </div>
+                    <?php if ($show_qr_id): ?>
+                    <div style="margin-top: 12px;">
+                        <img id="idCardQR" src="" alt="QR Code" style="width: 70px; height: 70px; border: 2px solid var(--ink-200); padding: 2px; border-radius: 4px;">
+                    </div>
+                    <?php endif; ?>
                 </div>
                 <div style="background:var(--ink-900);color:#fff;padding:6px;font-size:0.68rem;">Valid until completion of study</div>
             </div>
@@ -286,6 +388,17 @@ if (courseSelect) {
     generateRoll();
 }
 
+function editAdmission(student) {
+    document.getElementById('e_student_id').value = student.id;
+    document.getElementById('e_name').value = student.name;
+    document.getElementById('e_mobile').value = student.mobile;
+    document.getElementById('e_email').value = student.email;
+    document.getElementById('e_course_id').value = student.course_id;
+    document.getElementById('e_batch_id').value = student.batch_id;
+    document.getElementById('e_admission_date').value = student.admission_date.split(' ')[0];
+    openModal('editAdmissionModal');
+}
+
 function openIdCard(student) {
     document.getElementById('idCardInitials').textContent = student.name.charAt(0).toUpperCase();
     document.getElementById('idCardName').textContent = student.name;
@@ -293,6 +406,12 @@ function openIdCard(student) {
     document.getElementById('idCardCourse').textContent = student.course_name;
     document.getElementById('idCardBatch').textContent = student.batch_name;
     document.getElementById('idCardPhone').textContent = student.mobile;
+    
+    const qrEl = document.getElementById('idCardQR');
+    if (qrEl) {
+        qrEl.src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(student.roll_number);
+    }
+    
     openModal('idCardModal');
 }
 </script>

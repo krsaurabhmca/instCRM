@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if (verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $roll = sanitize($_POST['roll_number']);
         $a_date = sanitize($_POST['attendance_date']);
+        $is_ajax = isset($_POST['ajax']) && $_POST['ajax'] == '1';
         
         // Find student
         $student_res = db_query($conn, "SELECT id, batch_id FROM students WHERE roll_number = ? AND tenant_id = ?", [$roll, $tenant_id]);
@@ -55,15 +56,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($student) {
             db_query($conn, "
                 INSERT INTO attendance (tenant_id, student_id, batch_id, attendance_date, status, notes) 
-                VALUES (?, ?, ?, ?, 'Present', 'Checked in via QR Simulator')
-                ON DUPLICATE KEY UPDATE status = 'Present', notes = 'Checked in via QR Simulator'", [
+                VALUES (?, ?, ?, ?, 'Present', 'Checked in via QR Scanner')
+                ON DUPLICATE KEY UPDATE status = 'Present', notes = 'Checked in via QR Scanner'", [
                 $tenant_id, $student['id'], $student['batch_id'], $a_date
             ]);
-            set_flash_message('success', "Roll No: $roll checked in successfully!");
-            redirect("/attendance.php?batch_id=" . $student['batch_id'] . "&date=$a_date");
+            
+            if ($is_ajax) {
+                echo json_encode(['status' => 'success', 'message' => "Roll No: $roll checked in successfully!"]);
+                exit;
+            } else {
+                set_flash_message('success', "Roll No: $roll checked in successfully!");
+                redirect("/attendance.php?batch_id=" . $student['batch_id'] . "&date=$a_date");
+            }
         } else {
-            set_flash_message('danger', "Student with Roll Number $roll not found!");
-            redirect('/attendance.php');
+            if ($is_ajax) {
+                echo json_encode(['status' => 'error', 'message' => "Student with Roll Number $roll not found!"]);
+                exit;
+            } else {
+                set_flash_message('danger', "Student with Roll Number $roll not found!");
+                redirect('/attendance.php');
+            }
         }
     }
 }
@@ -97,7 +109,7 @@ $summary = db_query($conn, "
 
 <div class="page-header">
     <h2><i class="bi bi-calendar-check-fill" style="color:var(--primary);margin-right:8px;"></i>Attendance Management</h2>
-    <button class="btn btn-secondary" onclick="openModal('qrCheckinModal')"><i class="bi bi-qr-code-scan"></i> QR / Roll No Check-in</button>
+    <button class="btn btn-secondary" onclick="startQrScanner()"><i class="bi bi-qr-code-scan"></i> QR / Roll No Check-in</button>
 </div>
 
 <!-- Select Batch & Date Form -->
@@ -241,30 +253,99 @@ $summary = db_query($conn, "
 <!-- Modal: QR / Roll Code Check-in Simulator -->
 <div id="qrCheckinModal" class="modal-backdrop">
     <div class="modal" style="max-width: 420px;">
-        <form action="attendance.php" method="POST">
+        <form id="qrCheckinForm" action="attendance.php" method="POST">
             <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
             <input type="hidden" name="action" value="qr_checkin">
             <input type="hidden" name="attendance_date" value="<?= date('Y-m-d') ?>">
             <div class="modal-header">
                 <h3><i class="bi bi-qr-code-scan" style="color:var(--primary);margin-right:6px;"></i>QR / Roll Call Scanner</h3>
-                <button type="button" class="modal-close" onclick="closeModal('qrCheckinModal')"><i class="bi bi-x-lg"></i></button>
+                <button type="button" class="modal-close" onclick="closeModal('qrCheckinModal'); if(html5QrcodeScanner) html5QrcodeScanner.clear();"><i class="bi bi-x-lg"></i></button>
             </div>
             <div class="modal-body" style="text-align: center;">
+                <div id="reader" style="width: 100%; margin-bottom: 15px;"></div>
                 <div style="padding: 20px; border: 2px dashed var(--primary); border-radius: 8px; margin-bottom: 20px; background-color: var(--primary-light);">
                     <i class="bi bi-qr-code-scan" style="font-size: 3rem; color: var(--primary);"></i>
                     <p style="font-size: 0.85rem; color: var(--slate-600); margin-top: 8px;">Scan student ID card or manually enter Roll Number below to instantly log attendance as <strong>Present</strong> for today.</p>
                 </div>
                 <div class="form-group">
                     <label class="form-label" style="text-align: left;">Enter Roll Number</label>
-                    <input type="text" name="roll_number" class="form-control" placeholder="E.g., WD-101-2026-4859" required autofocus>
+                    <input type="text" name="roll_number" id="roll_number_input" class="form-control" placeholder="E.g., WD-101-2026-4859" required autofocus>
                 </div>
+                <div id="qrMessageArea" style="margin-top: 15px; font-size: 1rem; min-height: 24px;"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('qrCheckinModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Submit Check-in</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('qrCheckinModal'); if(html5QrcodeScanner) html5QrcodeScanner.clear(); window.location.reload();">Done</button>
+                <button type="submit" class="btn btn-primary" id="btnManualSubmit">Submit Check-in</button>
             </div>
         </form>
     </div>
 </div>
+
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+let html5QrcodeScanner = null;
+let isScanning = false;
+
+function startQrScanner() {
+    openModal('qrCheckinModal');
+    document.getElementById('qrMessageArea').innerHTML = '';
+    
+    if (!html5QrcodeScanner) {
+        html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader",
+            { fps: 10, qrbox: {width: 250, height: 250} },
+            /* verbose= */ false);
+    }
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+    if(isScanning) return;
+    isScanning = true;
+    
+    document.getElementById('roll_number_input').value = decodedText;
+    
+    const msgArea = document.getElementById('qrMessageArea');
+    msgArea.innerHTML = '<div style="color:var(--primary); font-weight:600;"><i class="bi bi-hourglass-split"></i> Processing ' + decodedText + '...</div>';
+    
+    const formData = new FormData();
+    formData.append('csrf_token', '<?= csrf_token() ?>');
+    formData.append('action', 'qr_checkin');
+    formData.append('attendance_date', '<?= date('Y-m-d') ?>');
+    formData.append('roll_number', decodedText);
+    formData.append('ajax', '1');
+    
+    fetch('attendance.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.status === 'success') {
+            msgArea.innerHTML = '<div style="color:var(--success); font-weight:600;"><i class="bi bi-check-circle-fill"></i> ' + data.message + '</div>';
+        } else {
+            msgArea.innerHTML = '<div style="color:var(--danger); font-weight:600;"><i class="bi bi-x-circle-fill"></i> ' + data.message + '</div>';
+        }
+        
+        setTimeout(() => {
+            isScanning = false;
+        }, 2000);
+    })
+    .catch(error => {
+        msgArea.innerHTML = '<div style="color:var(--danger); font-weight:600;"><i class="bi bi-x-circle-fill"></i> Network Error. Try again.</div>';
+        setTimeout(() => { isScanning = false; }, 2000);
+    });
+}
+
+function onScanFailure(error) {
+    // Ignore frame failures
+}
+
+document.getElementById('qrCheckinForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const roll = document.getElementById('roll_number_input').value;
+    if(roll) onScanSuccess(roll, null);
+});
+</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

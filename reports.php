@@ -238,11 +238,14 @@ $batches = db_query($conn, "SELECT id, name FROM batches WHERE tenant_id = ? AND
         <div class="card">
             <div class="card-header">
                 <h3 class="card-title">Fee Collection</h3>
-                <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+                <div class="action-btns">
+                    <button class="btn btn-secondary btn-sm" onclick="exportTableToCSV('feeCollectionTable', 'fee_collections.csv')"><i class="bi bi-file-earmark-spreadsheet"></i> Export CSV</button>
+                    <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table">
+                    <table class="table" id="feeCollectionTable">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -355,5 +358,39 @@ $batches = db_query($conn, "SELECT id, name FROM batches WHERE tenant_id = ? AND
         </div>
     </div>
 <?php endif; ?>
+
+<script>
+function downloadCSV(csv, filename) {
+    let csvFile = new Blob([csv], {type: "text/csv"});
+    let downloadLink = document.createElement("a");
+    downloadLink.download = filename;
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.style.display = "none";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+}
+
+function exportTableToCSV(tableId, filename) {
+    let csv = [];
+    let rows = document.querySelectorAll("#" + tableId + " tr");
+    
+    for (let i = 0; i < rows.length; i++) {
+        let row = [], cols = rows[i].querySelectorAll("td, th");
+        
+        for (let j = 0; j < cols.length; j++) {
+            // Get text content and strip extra whitespace/newlines
+            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").trim();
+            // Escape double quotes
+            data = data.replace(/"/g, '""');
+            // Enclose in quotes
+            row.push('"' + data + '"');
+        }
+        
+        csv.push(row.join(","));
+    }
+    
+    downloadCSV(csv.join("\n"), filename);
+}
+</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

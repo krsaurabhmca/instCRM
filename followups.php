@@ -44,7 +44,12 @@ if (isset($_GET['complete_id'])) {
 
 // Fetch calendar data (Pending counts per day)
 $cal_filter = isset($_GET['cal_date']) ? sanitize($_GET['cal_date']) : '';
-$cal_res = db_query($conn, "SELECT DATE(followup_date) as fdate, COUNT(*) as count FROM followups WHERE tenant_id = ? AND status = 'Pending' GROUP BY DATE(followup_date)", [$tenant_id]);
+$cal_month = isset($_GET['cal_month']) ? sanitize($_GET['cal_month']) : date('Y-m');
+
+$first_day_of_month = $cal_month . '-01';
+$last_day_of_month = date('Y-m-t', strtotime($first_day_of_month));
+
+$cal_res = db_query($conn, "SELECT DATE(followup_date) as fdate, COUNT(*) as count FROM followups WHERE tenant_id = ? AND status = 'Pending' AND followup_date BETWEEN ? AND ? GROUP BY DATE(followup_date)", [$tenant_id, $first_day_of_month . ' 00:00:00', $last_day_of_month . ' 23:59:59']);
 $cal_counts = [];
 while ($r = mysqli_fetch_assoc($cal_res)) {
     $cal_counts[$r['fdate']] = $r['count'];
@@ -191,11 +196,24 @@ $completed_followups_list = db_query($conn, "
     
     <!-- Follow-up Calendar -->
     <div class="calendar-wrapper">
-        <div class="calendar-header">
-            <h3 class="calendar-title"><i class="bi bi-calendar-week" style="color:var(--primary);margin-right:8px;"></i>Follow-up Schedule</h3>
-            <?php if ($cal_filter): ?>
-                <a href="followups.php" class="btn btn-secondary btn-sm">Clear Filter</a>
-            <?php endif; ?>
+        <div class="calendar-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; gap:16px; align-items:center;">
+                <h3 class="calendar-title"><i class="bi bi-calendar-week" style="color:var(--primary);margin-right:8px;"></i>Follow-up Schedule</h3>
+                <?php if ($cal_filter): ?>
+                    <a href="followups.php?cal_month=<?= $cal_month ?>" class="btn btn-secondary btn-sm">Clear Filter</a>
+                <?php endif; ?>
+            </div>
+            
+            <?php
+            $prev_month = date('Y-m', strtotime($first_day_of_month . ' -1 month'));
+            $next_month = date('Y-m', strtotime($first_day_of_month . ' +1 month'));
+            $month_name = date('F Y', strtotime($first_day_of_month));
+            ?>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <a href="followups.php?cal_month=<?= $prev_month ?>" class="btn btn-secondary btn-sm btn-icon"><i class="bi bi-chevron-left"></i></a>
+                <span style="font-weight:600; min-width:120px; text-align:center;"><?= $month_name ?></span>
+                <a href="followups.php?cal_month=<?= $next_month ?>" class="btn btn-secondary btn-sm btn-icon"><i class="bi bi-chevron-right"></i></a>
+            </div>
         </div>
         <div class="calendar-grid">
             <div class="calendar-day-header">Sun</div>
@@ -206,9 +224,8 @@ $completed_followups_list = db_query($conn, "
             <div class="calendar-day-header">Fri</div>
             <div class="calendar-day-header">Sat</div>
             <?php
-            $first_day = date('Y-m-01');
-            $start_dow = date('w', strtotime($first_day));
-            $days_in_month = date('t');
+            $start_dow = date('w', strtotime($first_day_of_month));
+            $days_in_month = date('t', strtotime($first_day_of_month));
             $today_str = date('Y-m-d');
             
             for ($i = 0; $i < $start_dow; $i++) {
@@ -216,7 +233,7 @@ $completed_followups_list = db_query($conn, "
             }
             
             for ($d = 1; $d <= $days_in_month; $d++) {
-                $date_str = date('Y-m-') . str_pad($d, 2, '0', STR_PAD_LEFT);
+                $date_str = $cal_month . '-' . str_pad($d, 2, '0', STR_PAD_LEFT);
                 $is_today = ($date_str === $today_str);
                 $is_active = ($date_str === $cal_filter);
                 $count = $cal_counts[$date_str] ?? 0;
@@ -227,7 +244,7 @@ $completed_followups_list = db_query($conn, "
                 
                 $badge_html = $count > 0 ? "<div class='calendar-badge'>$count</div>" : "";
                 
-                echo "<a href='followups.php?cal_date=$date_str' class='".implode(' ', $classes)."'>";
+                echo "<a href='followups.php?cal_month=$cal_month&cal_date=$date_str' class='".implode(' ', $classes)."'>";
                 echo "<span>$d</span>";
                 echo $badge_html;
                 echo "</a>";

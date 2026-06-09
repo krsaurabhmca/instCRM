@@ -22,13 +22,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $phone = sanitize($_POST['phone']);
             $address = sanitize($_POST['address']);
             $prefix = sanitize($_POST['prefix']);
+            $show_logo_receipt = isset($_POST['show_logo_receipt']) ? 1 : 0;
+            $show_logo_id = isset($_POST['show_logo_id']) ? 1 : 0;
+            $show_qr_receipt = isset($_POST['show_qr_receipt']) ? 1 : 0;
+            $show_qr_id = isset($_POST['show_qr_id']) ? 1 : 0;
+            $theme_color = sanitize($_POST['theme_color'] ?? '#4f46e5');
+            $receipt_notes = sanitize($_POST['receipt_notes'] ?? '');
             
-            db_query($conn, "UPDATE tenants SET name = ?, email = ?, phone = ?, address = ?, prefix = ? WHERE id = ?", [
-                $name, $email, $phone, $address, $prefix, $tenant_id
+            db_query($conn, "UPDATE tenants SET name = ?, email = ?, phone = ?, address = ?, prefix = ?, show_logo_receipt = ?, show_logo_id = ?, show_qr_receipt = ?, show_qr_id = ?, theme_color = ?, receipt_notes = ? WHERE id = ?", [
+                $name, $email, $phone, $address, $prefix, $show_logo_receipt, $show_logo_id, $show_qr_receipt, $show_qr_id, $theme_color, $receipt_notes, $tenant_id
             ]);
             
-            // Handle Logo Upload
-            if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+            // Handle Logo Upload/Removal
+            if (isset($_POST['remove_logo'])) {
+                db_query($conn, "UPDATE tenants SET logo_path = NULL WHERE id = ?", [$tenant_id]);
+            } elseif (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
                 $upload_dir = 'uploads/tenants/';
                 if (!is_dir($upload_dir)) {
                     mkdir($upload_dir, 0755, true);
@@ -43,6 +51,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     }
                 } else {
                     set_flash_message('danger', 'Invalid logo file type.');
+                }
+            }
+            
+            // Handle Signature Upload/Removal
+            if (isset($_POST['remove_signature'])) {
+                db_query($conn, "UPDATE tenants SET signature_path = NULL WHERE id = ?", [$tenant_id]);
+            } elseif (isset($_FILES['signature']) && $_FILES['signature']['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = 'uploads/tenants/';
+                if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+                $ext = strtolower(pathinfo($_FILES['signature']['name'], PATHINFO_EXTENSION));
+                $allowed = ['jpg', 'jpeg', 'png', 'svg'];
+                if (in_array($ext, $allowed)) {
+                    $filename = "sig_" . $tenant_id . "_" . time() . "." . $ext;
+                    $dest = $upload_dir . $filename;
+                    if (move_uploaded_file($_FILES['signature']['tmp_name'], $dest)) {
+                        db_query($conn, "UPDATE tenants SET signature_path = ? WHERE id = ?", [$dest, $tenant_id]);
+                    }
+                } else {
+                    set_flash_message('danger', 'Invalid signature file type.');
                 }
             }
             
@@ -84,6 +111,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             set_flash_message('success', "Course marked as $new_status.");
             redirect('/settings.php?tab=courses');
         }
+        elseif ($action === 'delete_course') {
+            $cid = intval($_POST['course_id']);
+            $check = db_query($conn, "SELECT id FROM students WHERE course_id = ? AND tenant_id = ?", [$cid, $tenant_id]);
+            if (mysqli_num_rows($check) > 0) {
+                set_flash_message('danger', 'Cannot delete course with enrolled students.');
+            } else {
+                db_query($conn, "DELETE FROM courses WHERE id = ? AND tenant_id = ?", [$cid, $tenant_id]);
+                set_flash_message('success', 'Course deleted successfully.');
+            }
+            redirect('/settings.php?tab=courses');
+        }
         
         // --- BATCH MANAGEMENT ---
         elseif ($action === 'add_batch') {
@@ -122,6 +160,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             set_flash_message('success', "Batch marked as $new_status.");
             redirect('/settings.php?tab=batches');
         }
+        
+        // --- EMAIL CONFIGURATION ---
+        elseif ($action === 'update_smtp') {
+            $smtp_host = sanitize($_POST['smtp_host']);
+            $smtp_port = intval($_POST['smtp_port']);
+            $smtp_user = sanitize($_POST['smtp_user']);
+            $smtp_pass = $_POST['smtp_pass']; // Keep original characters for password
+            
+            db_query($conn, "UPDATE tenants SET smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ? WHERE id = ?", [
+                $smtp_host, $smtp_port, $smtp_user, $smtp_pass, $tenant_id
+            ]);
+            
+            set_flash_message('success', 'Email settings updated successfully.');
+            redirect('/settings.php?tab=email');
+        }
+        
+        // --- CATEGORY MANAGEMENT ---
+        elseif ($action === 'add_expense_category') {
+            $name = sanitize($_POST['name']);
+            db_insert($conn, "INSERT INTO expense_categories (tenant_id, name) VALUES (?, ?)", [$tenant_id, $name]);
+            set_flash_message('success', 'Expense category added.');
+            redirect('/settings.php?tab=categories');
+        }
+        elseif ($action === 'delete_expense_category') {
+            $id = intval($_POST['id']);
+            db_query($conn, "DELETE FROM expense_categories WHERE id = ? AND tenant_id = ?", [$id, $tenant_id]);
+            set_flash_message('success', 'Expense category deleted.');
+            redirect('/settings.php?tab=categories');
+        }
+        elseif ($action === 'add_enquiry_source') {
+            $name = sanitize($_POST['name']);
+            db_insert($conn, "INSERT INTO enquiry_sources (tenant_id, name) VALUES (?, ?)", [$tenant_id, $name]);
+            set_flash_message('success', 'Enquiry source added.');
+            redirect('/settings.php?tab=categories');
+        }
+        elseif ($action === 'delete_enquiry_source') {
+            $id = intval($_POST['id']);
+            db_query($conn, "DELETE FROM enquiry_sources WHERE id = ? AND tenant_id = ?", [$id, $tenant_id]);
+            set_flash_message('success', 'Enquiry source deleted.');
+            redirect('/settings.php?tab=categories');
+        }
     }
 }
 
@@ -135,6 +214,14 @@ while($r = mysqli_fetch_assoc($c_res)) $courses[] = $r;
 $batches = [];
 $b_res = db_query($conn, "SELECT b.*, c.name as course_name FROM batches b JOIN courses c ON b.course_id = c.id WHERE b.tenant_id = ? ORDER BY b.created_at DESC", [$tenant_id]);
 while($r = mysqli_fetch_assoc($b_res)) $batches[] = $r;
+
+$expense_categories = [];
+$res = db_query($conn, "SELECT * FROM expense_categories WHERE tenant_id = ? ORDER BY name ASC", [$tenant_id]);
+while($r = mysqli_fetch_assoc($res)) $expense_categories[] = $r;
+
+$enquiry_sources = [];
+$res = db_query($conn, "SELECT * FROM enquiry_sources WHERE tenant_id = ? ORDER BY name ASC", [$tenant_id]);
+while($r = mysqli_fetch_assoc($res)) $enquiry_sources[] = $r;
 ?>
 
 <div class="page-header">
@@ -142,10 +229,12 @@ while($r = mysqli_fetch_assoc($b_res)) $batches[] = $r;
 </div>
 
 <!-- Tabs -->
-<div style="margin-bottom: 24px; border-bottom: 1px solid var(--ink-200); display: flex; gap: 16px;">
-    <a href="settings.php?tab=profile" class="btn <?= $tab === 'profile' ? 'btn-primary' : 'btn-secondary' ?>" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0;">Institute Profile</a>
-    <a href="settings.php?tab=courses" class="btn <?= $tab === 'courses' ? 'btn-primary' : 'btn-secondary' ?>" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0;">Courses</a>
-    <a href="settings.php?tab=batches" class="btn <?= $tab === 'batches' ? 'btn-primary' : 'btn-secondary' ?>" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0;">Batches</a>
+<div style="margin-bottom: 24px; border-bottom: 1px solid var(--ink-200); display: flex; gap: 16px; overflow-x: auto;">
+    <a href="settings.php?tab=profile" class="btn <?= $tab === 'profile' ? 'btn-primary' : 'btn-secondary' ?>" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0; white-space: nowrap;">Institute Profile</a>
+    <a href="settings.php?tab=email" class="btn <?= $tab === 'email' ? 'btn-primary' : 'btn-secondary' ?>" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0; white-space: nowrap;">Email Settings</a>
+    <a href="settings.php?tab=categories" class="btn <?= $tab === 'categories' ? 'btn-primary' : 'btn-secondary' ?>" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0; white-space: nowrap;">Categories</a>
+    <a href="settings.php?tab=courses" class="btn <?= $tab === 'courses' ? 'btn-primary' : 'btn-secondary' ?>" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0; white-space: nowrap;">Courses</a>
+    <a href="settings.php?tab=batches" class="btn <?= $tab === 'batches' ? 'btn-primary' : 'btn-secondary' ?>" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0; white-space: nowrap;">Batches</a>
 </div>
 
 <?php if ($tab === 'profile'): ?>
@@ -190,15 +279,187 @@ while($r = mysqli_fetch_assoc($b_res)) $batches[] = $r;
                 <label class="form-label">Institute Logo</label>
                 <?php if (!empty($t_data['logo_path'])): ?>
                     <div style="margin-bottom:10px;">
-                        <img src="<?= BASE_URL ?>/<?= $t_data['logo_path'] ?>" alt="Current Logo" style="height:60px; border:1px solid var(--ink-200); border-radius:4px;">
+                        <img src="<?= BASE_URL ?>/<?= $t_data['logo_path'] ?>" alt="Current Logo" style="height:60px; border:1px solid var(--ink-200); border-radius:4px; margin-bottom: 8px;">
+                        <div>
+                            <label style="color:var(--danger); cursor:pointer;"><input type="checkbox" name="remove_logo" value="1"> Remove current logo</label>
+                        </div>
                     </div>
                 <?php endif; ?>
                 <input type="file" name="logo" class="form-control" accept="image/*">
                 <small class="text-muted">Leave blank to keep current logo. Max 2MB.</small>
             </div>
             
-            <button type="submit" class="btn btn-primary">Save Profile Settings</button>
+            <div class="form-group">
+                <label class="form-label">Authorized Signature</label>
+                <?php if (!empty($t_data['signature_path'])): ?>
+                    <div style="margin-bottom:10px;">
+                        <img src="<?= BASE_URL ?>/<?= $t_data['signature_path'] ?>" alt="Current Signature" style="height:40px; border:1px solid var(--ink-200); border-radius:4px; margin-bottom: 8px;">
+                        <div>
+                            <label style="color:var(--danger); cursor:pointer;"><input type="checkbox" name="remove_signature" value="1"> Remove signature</label>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                <input type="file" name="signature" class="form-control" accept="image/*">
+                <small class="text-muted">Used on fee receipts. Max 2MB.</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Receipt Notes (Footer)</label>
+                <textarea name="receipt_notes" class="form-control" rows="2" placeholder="E.g., Fees once paid are non-refundable."><?= htmlspecialchars($t_data['receipt_notes'] ?? '') ?></textarea>
+            </div>
+            
+            <h4 style="margin-top:24px; border-bottom:1px solid var(--ink-200); padding-bottom:8px; margin-bottom: 16px;">Features & Customization</h4>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label class="form-label">Theme Color</label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <?php 
+                        $colors = [
+                            'Indigo' => '#4f46e5',
+                            'Blue' => '#2563eb',
+                            'Teal' => '#0d9488',
+                            'Emerald' => '#059669',
+                            'Rose' => '#e11d48',
+                            'Orange' => '#ea580c',
+                            'Purple' => '#9333ea',
+                            'Slate' => '#475569',
+                            'Crimson' => '#dc143c'
+                        ];
+                        $current_color = $t_data['theme_color'] ?? '#4f46e5';
+                        foreach ($colors as $name => $hex):
+                            $selected = ($current_color === $hex) ? 'border: 2px solid var(--ink-900); transform: scale(1.1);' : 'border: 2px solid transparent;';
+                        ?>
+                        <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                            <input type="radio" name="theme_color" value="<?= $hex ?>" <?= ($current_color === $hex) ? 'checked' : '' ?> style="display:none;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background-color: <?= $hex ?>; <?= $selected ?> transition: transform 0.2s;" title="<?= $name ?>" onclick="this.parentElement.parentElement.querySelectorAll('div').forEach(d => { d.style.border='2px solid transparent'; d.style.transform='scale(1)' }); this.style.border='2px solid var(--ink-900)'; this.style.transform='scale(1.1)';"></div>
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label style="cursor:pointer; display:block; margin-bottom:8px;"><input type="checkbox" name="show_logo_receipt" value="1" <?= ($t_data['show_logo_receipt'] ?? 1) ? 'checked' : '' ?>> Show Logo on Receipt</label>
+                    <label style="cursor:pointer; display:block;"><input type="checkbox" name="show_logo_id" value="1" <?= ($t_data['show_logo_id'] ?? 1) ? 'checked' : '' ?>> Show Logo on ID Card</label>
+                </div>
+                <div class="form-group">
+                    <label style="cursor:pointer; display:block; margin-bottom:8px;"><input type="checkbox" name="show_qr_receipt" value="1" <?= ($t_data['show_qr_receipt'] ?? 1) ? 'checked' : '' ?>> Show QR Code on Receipt</label>
+                    <label style="cursor:pointer; display:block;"><input type="checkbox" name="show_qr_id" value="1" <?= ($t_data['show_qr_id'] ?? 1) ? 'checked' : '' ?>> Show QR Code on ID Card</label>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Save Profile Settings</button>
         </form>
+    </div>
+</div>
+
+<?php elseif ($tab === 'email'): ?>
+<div class="card" style="max-width:800px;">
+    <div class="card-header">
+        <h3 class="card-title">SMTP Email Configuration</h3>
+    </div>
+    <div class="card-body">
+        <div style="background-color: var(--brand-50); border: 1px solid var(--brand-200); padding: 16px; border-radius: var(--r-md); margin-bottom: 24px;">
+            <h4 style="margin: 0 0 8px 0; color: var(--brand-700);"><i class="bi bi-google"></i> Gmail Setup Instructions</h4>
+            <ol style="margin: 0; padding-left: 20px; color: var(--ink-700); font-size: 0.9rem; line-height: 1.6;">
+                <li>Enable <strong>2-Step Verification</strong> on your Google Account.</li>
+                <li>Go to Google Account Security &gt; <strong>App Passwords</strong>.</li>
+                <li>Create an App Password (select "Other" and name it "InstCRM").</li>
+                <li>Copy the 16-character password and paste it into the <strong>SMTP Password</strong> field below.</li>
+                <li>Use <strong>smtp.gmail.com</strong> as Host and <strong>587</strong> as Port.</li>
+            </ol>
+        </div>
+
+        <form action="settings.php" method="POST">
+            <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+            <input type="hidden" name="action" value="update_smtp">
+            
+            <div class="grid-2">
+                <div class="form-group">
+                    <label class="form-label">SMTP Host</label>
+                    <input type="text" name="smtp_host" class="form-control" value="<?= htmlspecialchars($t_data['smtp_host'] ?? '') ?>" placeholder="e.g. smtp.gmail.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">SMTP Port</label>
+                    <input type="number" name="smtp_port" class="form-control" value="<?= htmlspecialchars($t_data['smtp_port'] ?? '587') ?>" placeholder="e.g. 587">
+                </div>
+            </div>
+            
+            <div class="grid-2">
+                <div class="form-group">
+                    <label class="form-label">SMTP Username (Email)</label>
+                    <input type="email" name="smtp_user" class="form-control" value="<?= htmlspecialchars($t_data['smtp_user'] ?? '') ?>" placeholder="you@gmail.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">SMTP Password</label>
+                    <input type="password" name="smtp_pass" class="form-control" value="<?= htmlspecialchars($t_data['smtp_pass'] ?? '') ?>" placeholder="16-character App Password">
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save Email Settings</button>
+        </form>
+    </div>
+</div>
+
+<?php elseif ($tab === 'categories'): ?>
+<div class="grid-2">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Expense Categories</h3>
+            <button class="btn btn-primary btn-sm" onclick="openModal('addExpCatModal')"><i class="bi bi-plus"></i> Add</button>
+        </div>
+        <div class="card-body p-0">
+            <table class="table">
+                <tbody>
+                    <?php if(empty($expense_categories)): ?>
+                        <tr><td><div class="text-muted" style="padding:16px;">No categories</div></td></tr>
+                    <?php else: foreach ($expense_categories as $ec): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($ec['name']) ?></td>
+                            <td style="text-align:right;">
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                    <input type="hidden" name="action" value="delete_expense_category">
+                                    <input type="hidden" name="id" value="<?= $ec['id'] ?>">
+                                    <button type="submit" class="btn btn-danger-soft btn-sm btn-icon" onclick="return confirm('Delete this category?')"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Enquiry Sources</h3>
+            <div style="display:flex; gap:8px;">
+                <button class="btn btn-info btn-sm" onclick="openQrModal('QR Scan', <?= $tenant_id ?>)"><i class="bi bi-qr-code"></i> Public QR</button>
+                <button class="btn btn-primary btn-sm" onclick="openModal('addEnqSrcModal')"><i class="bi bi-plus"></i> Add</button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <table class="table">
+                <tbody>
+                    <?php if(empty($enquiry_sources)): ?>
+                        <tr><td><div class="text-muted" style="padding:16px;">No sources</div></td></tr>
+                    <?php else: foreach ($enquiry_sources as $es): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($es['name']) ?></td>
+                            <td style="text-align:right;">
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                    <input type="hidden" name="action" value="delete_enquiry_source">
+                                    <input type="hidden" name="id" value="<?= $es['id'] ?>">
+                                    <button type="submit" class="btn btn-danger-soft btn-sm btn-icon" onclick="return confirm('Delete this source?')"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -243,6 +504,12 @@ while($r = mysqli_fetch_assoc($b_res)) $batches[] = $r;
                                             <i class="bi bi-<?= $c['status'] === 'Active' ? 'x-circle' : 'check-circle' ?>"></i>
                                         </button>
                                     </form>
+                                    <form method="POST" action="settings.php" style="display:inline;">
+                                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                        <input type="hidden" name="action" value="delete_course">
+                                        <input type="hidden" name="course_id" value="<?= $c['id'] ?>">
+                                        <button type="submit" class="btn btn-danger-soft btn-sm btn-icon" onclick="return confirm('Delete this course? Only possible if no students are enrolled.')" title="Delete"><i class="bi bi-trash"></i></button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -277,7 +544,7 @@ while($r = mysqli_fetch_assoc($b_res)) $batches[] = $r;
                     <?php if(empty($batches)): ?>
                         <tr><td colspan="7"><div class="empty-state"><p>No batches found.</p></div></td></tr>
                     <?php else: foreach($batches as $b): ?>
-                        <tr class="<?= $b['status'] === 'Inactive' ? 'row-disabled' : '' ?>">
+                        <tr class="<?= $b['status'] === 'Completed' ? 'row-disabled' : '' ?>">
                             <td><strong><?= $b['name'] ?></strong></td>
                             <td><?= $b['course_name'] ?></td>
                             <td>
@@ -295,7 +562,7 @@ while($r = mysqli_fetch_assoc($b_res)) $batches[] = $r;
                                         <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                                         <input type="hidden" name="action" value="toggle_batch">
                                         <input type="hidden" name="batch_id" value="<?= $b['id'] ?>">
-                                        <input type="hidden" name="new_status" value="<?= $b['status'] === 'Active' ? 'Inactive' : 'Active' ?>">
+                                        <input type="hidden" name="new_status" value="<?= $b['status'] === 'Active' ? 'Completed' : 'Active' ?>">
                                         <button type="submit" class="btn btn-sm <?= $b['status'] === 'Active' ? 'btn-secondary' : 'btn-success' ?>">
                                             <i class="bi bi-<?= $b['status'] === 'Active' ? 'x-circle' : 'check-circle' ?>"></i>
                                         </button>
@@ -310,6 +577,36 @@ while($r = mysqli_fetch_assoc($b_res)) $batches[] = $r;
     </div>
 </div>
 <?php endif; ?>
+
+<!-- Category Modals -->
+<div id="addExpCatModal" class="modal-backdrop">
+    <div class="modal" style="max-width:400px;">
+        <form action="settings.php" method="POST">
+            <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+            <input type="hidden" name="action" value="add_expense_category">
+            <div class="modal-header"><h3>Add Expense Category</h3><button type="button" class="modal-close" onclick="closeModal('addExpCatModal')"><i class="bi bi-x-lg"></i></button></div>
+            <div class="modal-body"><input type="text" name="name" class="form-control" required placeholder="Category Name"></div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">Save</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="addEnqSrcModal" class="modal-backdrop">
+    <div class="modal" style="max-width:400px;">
+        <form action="settings.php" method="POST">
+            <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+            <input type="hidden" name="action" value="add_enquiry_source">
+            <div class="modal-header"><h3>Add Enquiry Source</h3><button type="button" class="modal-close" onclick="closeModal('addEnqSrcModal')"><i class="bi bi-x-lg"></i></button></div>
+            <div class="modal-body"><input type="text" name="name" class="form-control" required placeholder="Source Name"></div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">Save</button></div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+</script>
 
 <!-- Course Modals -->
 <div id="courseAddModal" class="modal-backdrop">

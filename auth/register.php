@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 mysqli_begin_transaction($conn);
                 try {
                     // Create tenant
-                    $tenant_id = db_insert($conn, "INSERT INTO tenants (name, email, phone) VALUES (?, ?, ?)", [$inst_name, $email, $phone]);
+                    $tenant_id = db_insert($conn, "INSERT INTO tenants (name, email, phone, subscription_plan, subscription_status, trial_ends_at) VALUES (?, ?, ?, 'Free', 'Trial', DATE_ADD(NOW(), INTERVAL 3 DAY))", [$inst_name, $email, $phone]);
 
                     // Hash password
                     $hashed_password = password_hash($password, PASSWORD_BCRYPT);

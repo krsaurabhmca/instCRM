@@ -63,9 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // DELETE ENQUIRY
     if ($action === 'delete') {
-        $id = intval($_POST['id']);
-        db_query($conn, "DELETE FROM enquiries WHERE id = ? AND tenant_id = ?", [$id, $tenant_id]);
-        set_flash_message('success', 'Enquiry deleted successfully!');
+        if ($_SESSION['user_role'] === 'Admin') {
+            $id = intval($_POST['id']);
+            db_query($conn, "DELETE FROM enquiries WHERE id = ? AND tenant_id = ?", [$id, $tenant_id]);
+            set_flash_message('success', 'Enquiry deleted successfully!');
+        } else {
+            set_flash_message('danger', 'Unauthorized. Only admins can delete enquiries.');
+        }
         redirect('/enquiries.php');
     }
 
@@ -155,6 +159,11 @@ $users_res = db_query($conn, "SELECT id, name FROM users WHERE tenant_id = ? AND
 $counsellors = [];
 while ($row = mysqli_fetch_assoc($users_res)) { $counsellors[] = $row; }
 
+// Fetch Enquiry Sources
+$sources_res = db_query($conn, "SELECT name FROM enquiry_sources WHERE tenant_id = ? ORDER BY name ASC", [$tenant_id]);
+$enquiry_sources = [];
+while ($row = mysqli_fetch_assoc($sources_res)) { $enquiry_sources[] = $row['name']; }
+
 // Filtering / Searching
 $search = sanitize($_GET['search'] ?? '');
 $filter_status = sanitize($_GET['status'] ?? '');
@@ -217,11 +226,9 @@ $enquiries = db_query($conn, $query, $params);
                 <label class="form-label">Source</label>
                 <select name="source" class="form-control">
                     <option value="">All</option>
-                    <option value="Website" <?= $filter_source === 'Website' ? 'selected' : '' ?>>Website</option>
-                    <option value="Call" <?= $filter_source === 'Call' ? 'selected' : '' ?>>Call</option>
-                    <option value="Walk-in" <?= $filter_source === 'Walk-in' ? 'selected' : '' ?>>Walk-in</option>
-                    <option value="Social Media" <?= $filter_source === 'Social Media' ? 'selected' : '' ?>>Social Media</option>
-                    <option value="Other" <?= $filter_source === 'Other' ? 'selected' : '' ?>>Other</option>
+                    <?php foreach ($enquiry_sources as $src): ?>
+                        <option value="<?= htmlspecialchars($src) ?>" <?= $filter_source === $src ? 'selected' : '' ?>><?= htmlspecialchars($src) ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div>
@@ -286,7 +293,9 @@ $enquiries = db_query($conn, $query, $params);
                                 <td>
                                     <div class="action-btns">
                                         <button class="btn btn-secondary btn-sm btn-icon" onclick="openEditModal(<?= htmlspecialchars(json_encode($row)) ?>)" title="Edit"><i class="bi bi-pencil"></i></button>
-                                        <button class="btn btn-danger btn-sm btn-icon" onclick="openDeleteModal(<?= $row['id'] ?>)" title="Delete"><i class="bi bi-trash3"></i></button>
+                                        <?php if ($_SESSION['user_role'] === 'Admin'): ?>
+                                        <button class="btn btn-danger-soft btn-sm btn-icon" onclick="openDeleteModal(<?= $row['id'] ?>)" title="Delete"><i class="bi bi-trash3"></i></button>
+                                        <?php endif; ?>
                                         <a href="<?= BASE_URL ?>/followups.php?enquiry_id=<?= $row['id'] ?>" class="btn btn-primary btn-sm btn-icon" title="Follow-ups"><i class="bi bi-chat-left-text"></i></a>
                                     </div>
                                 </td>
@@ -328,11 +337,9 @@ $enquiries = db_query($conn, $query, $params);
                     <div class="form-group">
                         <label class="form-label">Source</label>
                         <select name="source" class="form-control">
-                            <option value="Walk-in">Walk-in</option>
-                            <option value="Website">Website</option>
-                            <option value="Call">Call</option>
-                            <option value="Social Media">Social Media</option>
-                            <option value="Other">Other</option>
+                            <?php foreach ($enquiry_sources as $src): ?>
+                                <option value="<?= htmlspecialchars($src) ?>"><?= htmlspecialchars($src) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="form-group">
@@ -407,11 +414,9 @@ $enquiries = db_query($conn, $query, $params);
                     <div class="form-group">
                         <label class="form-label">Source</label>
                         <select id="edit_source" name="source" class="form-control">
-                            <option value="Walk-in">Walk-in</option>
-                            <option value="Website">Website</option>
-                            <option value="Call">Call</option>
-                            <option value="Social Media">Social Media</option>
-                            <option value="Other">Other</option>
+                            <?php foreach ($enquiry_sources as $src): ?>
+                                <option value="<?= htmlspecialchars($src) ?>"><?= htmlspecialchars($src) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="form-group">

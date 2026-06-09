@@ -38,6 +38,15 @@ function require_login() {
     }
 }
 
+// Require user to be an admin
+function require_admin() {
+    require_login();
+    if (($_SESSION['user_role'] ?? '') !== 'Admin') {
+        set_flash_message('danger', 'Access denied. Administrator privileges required.');
+        redirect('/dashboard.php');
+    }
+}
+
 // Get logged-in user details
 function current_user() {
     return $_SESSION['user'] ?? null;

@@ -46,6 +46,11 @@ $expenses_by_cat = db_query($conn, "
     FROM expenses 
     WHERE tenant_id = ? 
     GROUP BY category", [$tenant_id]);
+
+// Fetch dynamic expense categories
+$exp_cats_res = db_query($conn, "SELECT name FROM expense_categories WHERE tenant_id = ? ORDER BY name ASC", [$tenant_id]);
+$expense_categories = [];
+while ($row = mysqli_fetch_assoc($exp_cats_res)) { $expense_categories[] = $row['name']; }
 ?>
 
 <div class="page-header">
@@ -194,13 +199,9 @@ $expenses_by_cat = db_query($conn, "
                     <div class="form-group">
                         <label class="form-label">Category</label>
                         <select name="category" class="form-control" required>
-                            <option value="Rent">Rent</option>
-                            <option value="Electricity">Electricity</option>
-                            <option value="Salaries">Salaries</option>
-                            <option value="Marketing">Marketing</option>
-                            <option value="Printing & Stationery">Printing & Stationery</option>
-                            <option value="Internet & Telephone">Internet & Telephone</option>
-                            <option value="Other">Other</option>
+                            <?php foreach ($expense_categories as $cat): ?>
+                                <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="form-group">

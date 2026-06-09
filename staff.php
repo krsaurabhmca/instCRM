@@ -47,6 +47,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             db_query($conn, $q, $params);
             set_flash_message('success', 'Staff updated successfully.');
             redirect('/staff.php');
+        } elseif ($_POST['action'] === 'login_as') {
+            $target_user_id = intval($_POST['user_id']);
+            $u_res = db_query($conn, "SELECT id, role, name FROM users WHERE id = ? AND tenant_id = ?", [$target_user_id, $tenant_id]);
+            $u = mysqli_fetch_assoc($u_res);
+            if ($u) {
+                $_SESSION['original_user_id'] = $_SESSION['user_id'];
+                $_SESSION['original_user_role'] = $_SESSION['user_role'];
+                $_SESSION['original_user_name'] = $_SESSION['user_name'];
+                $_SESSION['user_id'] = $u['id'];
+                $_SESSION['user_role'] = $u['role'];
+                $_SESSION['user_name'] = $u['name'];
+                redirect('/dashboard.php');
+            }
         }
     }
 }
@@ -90,6 +103,14 @@ $staff_res = db_query($conn, "SELECT * FROM users WHERE tenant_id = ? ORDER BY c
                                 </td>
                                 <td>
                                     <button class="btn btn-secondary btn-sm" onclick="editStaff(<?= htmlspecialchars(json_encode($row)) ?>)">Edit</button>
+                                    <?php if ($row['id'] !== $_SESSION['user_id']): ?>
+                                    <form action="staff.php" method="POST" style="display:inline;">
+                                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                        <input type="hidden" name="action" value="login_as">
+                                        <input type="hidden" name="user_id" value="<?= $row['id'] ?>">
+                                        <button type="submit" class="btn btn-info-soft btn-sm" onclick="return confirm('Login as <?= htmlspecialchars($row['name']) ?>?')"><i class="bi bi-box-arrow-in-right"></i> Login As</button>
+                                    </form>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endwhile; ?>
