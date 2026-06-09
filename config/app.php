@@ -6,8 +6,15 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'];
+$doc_root = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']);
+$app_root = str_replace('\\', '/', dirname(__DIR__));
+$base_path = str_replace($doc_root, '', $app_root);
+$base_url = $protocol . '://' . $host . $base_path;
+
 if (!file_exists(__DIR__ . '/db.php')) {
-    header("Location: /instcrm/install.php");
+    header("Location: " . $base_url . "/install.php");
     exit;
 }
 
@@ -15,7 +22,7 @@ require_once __DIR__ . '/db.php';
 
 // Application constants
 define('APP_NAME', 'InstCRM');
-define('BASE_URL', 'http://localhost/instcrm');
+define('BASE_URL', $base_url);
 
 // Sanitization helpers
 function sanitize($data) {
