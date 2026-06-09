@@ -1,0 +1,5 @@
+/uploads/
+.env
+.idea/
+.vscode/
+*.log
