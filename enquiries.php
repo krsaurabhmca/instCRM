@@ -335,7 +335,12 @@ $enquiries = db_query($conn, $query, $params);
                 </div>
                 <div class="grid-2">
                     <div class="form-group">
-                        <label class="form-label">Source</label>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <label class="form-label">Source</label>
+                            <?php if ($_SESSION['user_role'] === 'Admin'): ?>
+                                <a href="settings.php" target="_blank" style="font-size: 0.75rem; text-decoration: none; font-weight: 600;"><i class="bi bi-plus-lg"></i> Add New</a>
+                            <?php endif; ?>
+                        </div>
                         <select name="source" class="form-control">
                             <?php foreach ($enquiry_sources as $src): ?>
                                 <option value="<?= htmlspecialchars($src) ?>"><?= htmlspecialchars($src) ?></option>
@@ -343,7 +348,12 @@ $enquiries = db_query($conn, $query, $params);
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Course Interested In</label>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <label class="form-label">Course Interested In</label>
+                            <?php if ($_SESSION['user_role'] === 'Admin'): ?>
+                                <a href="settings.php" target="_blank" style="font-size: 0.75rem; text-decoration: none; font-weight: 600;"><i class="bi bi-plus-lg"></i> Add New</a>
+                            <?php endif; ?>
+                        </div>
                         <select name="course_id" class="form-control" required>
                             <?php foreach ($courses as $c): ?>
                                 <option value="<?= $c['id'] ?>"><?= $c['name'] ?></option>
@@ -412,7 +422,12 @@ $enquiries = db_query($conn, $query, $params);
                 </div>
                 <div class="grid-2">
                     <div class="form-group">
-                        <label class="form-label">Source</label>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <label class="form-label">Source</label>
+                            <?php if ($_SESSION['user_role'] === 'Admin'): ?>
+                                <a href="settings.php" target="_blank" style="font-size: 0.75rem; text-decoration: none; font-weight: 600;"><i class="bi bi-plus-lg"></i> Add New</a>
+                            <?php endif; ?>
+                        </div>
                         <select id="edit_source" name="source" class="form-control">
                             <?php foreach ($enquiry_sources as $src): ?>
                                 <option value="<?= htmlspecialchars($src) ?>"><?= htmlspecialchars($src) ?></option>
@@ -420,7 +435,12 @@ $enquiries = db_query($conn, $query, $params);
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Course Interested In</label>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <label class="form-label">Course Interested In</label>
+                            <?php if ($_SESSION['user_role'] === 'Admin'): ?>
+                                <a href="settings.php" target="_blank" style="font-size: 0.75rem; text-decoration: none; font-weight: 600;"><i class="bi bi-plus-lg"></i> Add New</a>
+                            <?php endif; ?>
+                        </div>
                         <select id="edit_course_id" name="course_id" class="form-control" required>
                             <?php foreach ($courses as $c): ?>
                                 <option value="<?= $c['id'] ?>"><?= $c['name'] ?></option>
