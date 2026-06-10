@@ -57,6 +57,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
 <body class="auth-page">
+    <script>
+        if (localStorage.getItem('theme_dark') === 'true') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        function toggleDarkMode() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme_dark', 'false');
+                document.getElementById('darkModeIcon').classList.replace('bi-sun-fill', 'bi-moon-fill');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme_dark', 'true');
+                document.getElementById('darkModeIcon').classList.replace('bi-moon-fill', 'bi-sun-fill');
+            }
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('theme_dark') === 'true') {
+                const icon = document.getElementById('darkModeIcon');
+                if(icon) icon.classList.replace('bi-moon-fill', 'bi-sun-fill');
+            }
+        });
+    </script>
+    <button onclick="toggleDarkMode()" style="position: absolute; top: 20px; right: 20px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: var(--text); cursor: pointer; z-index: 10; box-shadow: var(--shadow-sm);">
+        <i class="bi bi-moon-fill" id="darkModeIcon"></i>
+    </button>
     <div class="auth-bg-pattern"></div>
     <div class="auth-bg-grid"></div>
 

@@ -24,21 +24,21 @@ function formatStat($n) {
     <meta name="description" content="Run your institute like a pro. Manage enquiries, admissions, attendance, fees and staff with InstCRM. Start your 3-day free trial today.">
     <meta name="keywords" content="coaching center software, institute management system, coaching classes software, student management, fee management, QR attendance, CRM for coaching">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="http://localhost/instcrm/">
+    <link rel="canonical" href="<?= BASE_URL ?>/">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="http://localhost/instcrm/">
+    <meta property="og:url" content="<?= BASE_URL ?>/">
     <meta property="og:title" content="InstCRM — Smart Management for Institutes & Coaching Centers">
     <meta property="og:description" content="Run your institute like a pro. Manage enquiries, admissions, attendance, fees and staff with InstCRM. Start your 3-day free trial today.">
-    <meta property="og:image" content="http://localhost/instcrm/assets/images/og-image.jpg">
+    <meta property="og:image" content="<?= BASE_URL ?>/assets/images/og-image.jpg">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="http://localhost/instcrm/">
+    <meta property="twitter:url" content="<?= BASE_URL ?>/">
     <meta property="twitter:title" content="InstCRM — Smart Management for Institutes & Coaching Centers">
     <meta property="twitter:description" content="Run your institute like a pro. Manage enquiries, admissions, attendance, fees and staff with InstCRM. Start your 3-day free trial today.">
-    <meta property="twitter:image" content="http://localhost/instcrm/assets/images/twitter-image.jpg">
+    <meta property="twitter:image" content="<?= BASE_URL ?>/assets/images/twitter-image.jpg">
 
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -54,7 +54,7 @@ function formatStat($n) {
         "priceCurrency": "INR"
       },
       "description": "Run your institute like a pro. Manage enquiries, admissions, attendance, fees and staff with InstCRM.",
-      "url": "http://localhost/instcrm/"
+      "url": "<?= BASE_URL ?>/"
     }
     </script>
     
@@ -465,7 +465,7 @@ function formatStat($n) {
 
 <!-- ── NAVBAR ── -->
 <nav>
-    <a href="/" class="brand"><i class="bi bi-mortarboard-fill"></i> Inst<span>CRM</span></a>
+    <a href="<?= BASE_URL ?>/" class="brand"><i class="bi bi-mortarboard-fill"></i> Inst<span>CRM</span></a>
     <div class="nav-links">
         <a href="#features" class="hide-sm">Features</a>
         <a href="#pricing" class="hide-sm">Pricing</a>

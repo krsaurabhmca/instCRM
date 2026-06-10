@@ -10,9 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if (verify_csrf_token($_POST['csrf_token'] ?? '')) {
         if ($_POST['action'] === 'update_profile') {
             $name = sanitize($_POST['name']);
-            $email = sanitize($_POST['email']);
             
-            db_query($conn, "UPDATE users SET name = ?, email = ? WHERE id = ? AND tenant_id = ?", [$name, $email, $user_id, $tenant_id]);
+            db_query($conn, "UPDATE users SET name = ? WHERE id = ? AND tenant_id = ?", [$name, $user_id, $tenant_id]);
             $_SESSION['user_name'] = $name;
             set_flash_message('success', 'Profile updated successfully.');
             redirect('/profile.php');
@@ -58,8 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Email Address</label>
-                    <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" required>
+                    <label class="form-label">Email Address (Signup Email)</label>
+                    <input type="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" disabled style="background:var(--ink-50);">
                 </div>
                 
                 <div class="form-group">

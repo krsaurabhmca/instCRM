@@ -1,6 +1,8 @@
 CREATE DATABASE IF NOT EXISTS `instcrm`;
 USE `instcrm`;
 
+SET FOREIGN_KEY_CHECKS = 0;
+
 -- Table structure for `attendance`
 DROP TABLE IF EXISTS `attendance`;
 CREATE TABLE `attendance` (
@@ -263,3 +265,4 @@ CREATE TABLE `users` (
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+SET FOREIGN_KEY_CHECKS = 1;

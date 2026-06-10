@@ -884,39 +884,50 @@ textarea.form-control { resize: vertical; min-height: 90px; }
     justify-content: center;
     position: relative;
     overflow: hidden;
-    background: #0f1117;
+    background: var(--ink-50);
     padding: 20px;
 }
 
 .auth-bg-pattern {
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(99,102,241,.25) 0%, transparent 70%),
-                radial-gradient(ellipse 60% 40% at 80% 80%, rgba(99,102,241,.12) 0%, transparent 60%);
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(99,102,241,.15) 0%, transparent 70%),
+                radial-gradient(ellipse 60% 40% at 80% 80%, rgba(99,102,241,.08) 0%, transparent 60%);
     pointer-events: none;
 }
 
 .auth-bg-grid {
     position: absolute;
     inset: 0;
+    background-image: linear-gradient(var(--ink-200) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--ink-200) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.5;
+    pointer-events: none;
+}
+[data-theme="dark"] .auth-bg-grid {
     background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
                       linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
-    background-size: 48px 48px;
-    pointer-events: none;
+    opacity: 1;
 }
 
 .auth-card {
-    background: rgba(255,255,255,.03);
+    background: var(--white);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255,255,255,.1);
-    box-shadow: 0 32px 64px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08);
+    border: 1px solid var(--ink-200);
+    box-shadow: var(--shadow-lg);
     border-radius: var(--r-xl);
     width: 100%;
     max-width: 420px;
     padding: 40px;
     position: relative;
     z-index: 1;
+}
+[data-theme="dark"] .auth-card {
+    background: rgba(255,255,255,.03);
+    border-color: rgba(255,255,255,.1);
+    box-shadow: 0 32px 64px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08);
 }
 
 .auth-header {
@@ -945,7 +956,7 @@ textarea.form-control { resize: vertical; min-height: 90px; }
     font-family: var(--font-display);
     font-size: 1.4rem;
     font-weight: 800;
-    color: #fff;
+    color: var(--ink-900);
     letter-spacing: -.03em;
 }
 
@@ -953,29 +964,38 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 
 .auth-header h1 {
     font-size: 1.5rem;
-    color: #fff;
+    color: var(--ink-900);
     margin-bottom: 6px;
 }
 
 .auth-header p {
     font-size: 13.5px;
-    color: rgba(255,255,255,.5);
+    color: var(--ink-500);
     font-weight: 400;
 }
 
 /* Auth form labels & inputs */
-.auth-card .form-label { color: rgba(255,255,255,.75); }
+.auth-card .form-label { color: var(--ink-700); }
 
 .auth-card .form-control {
+    background: var(--white);
+    border-color: var(--ink-200);
+    color: var(--ink-900);
+}
+[data-theme="dark"] .auth-card .form-control {
     background: rgba(255,255,255,.06);
     border-color: rgba(255,255,255,.12);
-    color: #fff;
 }
-.auth-card .form-control::placeholder { color: rgba(255,255,255,.3); }
+.auth-card .form-control::placeholder { color: var(--ink-400); }
+[data-theme="dark"] .auth-card .form-control::placeholder { color: rgba(255,255,255,.3); }
 .auth-card .form-control:focus {
     border-color: var(--brand-400);
-    box-shadow: 0 0 0 3px rgba(99,102,241,.25);
+    box-shadow: 0 0 0 3px var(--primary-ring);
+    background: var(--white);
+}
+[data-theme="dark"] .auth-card .form-control:focus {
     background: rgba(255,255,255,.08);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.25);
 }
 
 .auth-card .btn-primary {
@@ -988,7 +1008,7 @@ textarea.form-control { resize: vertical; min-height: 90px; }
     text-align: center;
     margin-top: 20px;
     font-size: 13px;
-    color: rgba(255,255,255,.45);
+    color: var(--ink-500);
 }
 
 .auth-footer-link a {
@@ -1008,14 +1028,22 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 }
 
 .auth-alert.error {
-    background: rgba(220,38,38,.15);
+    background: var(--danger-light);
     border: 1px solid rgba(220,38,38,.3);
+    color: var(--danger);
+}
+[data-theme="dark"] .auth-alert.error {
+    background: rgba(220,38,38,.15);
     color: #fca5a5;
 }
 
 .auth-alert.success {
-    background: rgba(5,150,105,.15);
+    background: var(--success-light);
     border: 1px solid rgba(5,150,105,.3);
+    color: var(--success);
+}
+[data-theme="dark"] .auth-alert.success {
+    background: rgba(5,150,105,.15);
     color: #6ee7b7;
 }
 
